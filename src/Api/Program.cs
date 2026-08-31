@@ -10,6 +10,9 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Jobs")
 	?? "Host=localhost;Database=job_tracker;Username=postgres;Password=postgres";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+	?? ["http://localhost:3000", "http://127.0.0.1:3000"];
+
 builder.Services.AddMediatR(configuration =>
 	configuration.RegisterServicesFromAssemblyContaining<CreateJobCommand>());
 builder.Services.AddValidatorsFromAssemblyContaining<CreateJobCommand>();
@@ -28,6 +31,16 @@ builder.Services.AddScoped<OutboxDispatcher>();
 builder.Services.AddHangfire(configuration => configuration.UseSimpleAssemblyNameTypeSerializer()
 	.UseRecommendedSerializerSettings().UseStorage(new MemoryStorage()));
 builder.Services.AddHangfireServer();
+builder.Services.AddCors(options =>
+	{
+		options.AddPolicy("FrontendPolicy", policy =>
+		{
+			policy.WithOrigins(allowedOrigins)
+				.AllowAnyHeader()
+				.AllowAnyMethod();
+		});
+	});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -38,6 +51,7 @@ if (app.Environment.IsDevelopment())
 	app.UseSwagger();
 	app.UseSwaggerUI();
 }
+app.UseCors("FrontendPolicy");
 app.UseHangfireDashboard("/hangfire");
 RecurringJob.AddOrUpdate<OutboxPollingJob>("jobs-outbox", job => job.RunAsync(), "*/1 * * * *");
 app.MapControllers();
