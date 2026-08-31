@@ -51,6 +51,7 @@ if (app.Environment.IsDevelopment())
 	app.UseSwagger();
 	app.UseSwaggerUI();
 }
+app.UseStaticFiles();
 app.UseCors("FrontendPolicy");
 app.UseHangfireDashboard("/hangfire");
 RecurringJob.AddOrUpdate<OutboxPollingJob>("jobs-outbox", job => job.RunAsync(), "*/1 * * * *");

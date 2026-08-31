@@ -29,8 +29,24 @@ public sealed class OutboxDispatcher(JobsDbContext db)
 {
     public async Task DispatchAsync(CancellationToken cancellationToken = default)
     {
-        var pending = await db.OutboxMessages.Where(x => x.ProcessedOn == null).OrderBy(x => x.OccurredOn).Take(100).ToListAsync(cancellationToken);
-        foreach (var message in pending) { message.ProcessedOn = DateTime.UtcNow; }
-        await db.SaveChangesAsync(cancellationToken);
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                var pending = await db.OutboxMessages.Where(x => x.ProcessedOn == null).OrderBy(x => x.OccurredOn).Take(100).ToListAsync(cancellationToken);
+                if (pending.Count == 0)
+                {
+                    return;
+                }
+
+                foreach (var message in pending) { message.ProcessedOn = DateTime.UtcNow; }
+                await db.SaveChangesAsync(cancellationToken);
+                return;
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < 2)
+            {
+                await Task.Yield();
+            }
+        }
     }
 }
